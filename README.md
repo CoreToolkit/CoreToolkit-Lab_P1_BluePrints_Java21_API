@@ -55,9 +55,106 @@ src/main/java/edu/eci/arsw/blueprints
 - Analiza la capa `services` (`BlueprintsServices`) y el controlador `BlueprintsAPIController`.
 
 ### 2. Migración a persistencia en PostgreSQL
-- Configura una base de datos PostgreSQL (puedes usar Docker).  
-- Implementa un nuevo repositorio `PostgresBlueprintPersistence` que reemplace la versión en memoria.  
-- Mantén el contrato de la interfaz `BlueprintPersistence`.  
+
+
+#### Archivos de Configuración
+
+**`docker-compose.yml`** - Define el servicio PostgreSQL:
+```yaml
+services:
+  postgres:
+    image: postgres:16
+    container_name: blueprints-postgres
+    environment:
+      POSTGRES_DB: blueprintsdb
+      POSTGRES_USER: blueprintuser
+      POSTGRES_PASSWORD: blueprintpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blueprintuser -d blueprintsdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
+```
+
+**`init-db.sql`** - Script de inicialización:
+- Crea tabla `blueprints` (id, author, name)
+- Crea tabla `points` (id, blueprint_id, x, y, point_order)
+- Inserta 4 blueprints de prueba con sus puntos
+- Se ejecuta **solo la primera vez.**
+
+**`application.properties`** - Configuración Spring Boot:
+```properties
+# PostgreSQL
+spring.datasource.url=jdbc:postgresql://localhost:5432/blueprintsdb
+spring.datasource.username=blueprintuser
+spring.datasource.password=blueprintpass
+
+# JPA/Hibernate
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+
+# Docker Compose automático
+spring.docker.compose.enabled=true
+spring.docker.compose.lifecycle-management=start_and_stop
+```
+
+**`pom.xml`** - Dependencias necesarias:
+```xml
+<!-- PostgreSQL Driver -->
+<dependency>
+    <groupId>org.postgresql</groupId>
+    <artifactId>postgresql</artifactId>
+</dependency>
+
+<!-- Spring Data JPA -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-jpa</artifactId>
+</dependency>
+
+<!-- Docker Compose Support -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-docker-compose</artifactId>
+    <optional>true</optional>
+</dependency>
+```
+
+#### ¿Cómo funciona?
+
+Cuando ejecutas `mvn spring-boot:run`, Spring Boot automáticamente:
+
+1. **Detecta `docker-compose.yml`** en la raíz del proyecto
+2. **Levanta PostgreSQL** con `docker compose up`
+3. **Espera a que esté listo**
+4. **Ejecuta `init-db.sql`** (solo la primera vez)
+5. **Conecta la aplicación** a la base de datos
+6. **Detiene PostgreSQL** al cerrar la aplicación
+
+#### Verificar datos en PostgreSQL
+
+```bash
+# Consultar blueprints
+docker exec blueprints-postgres psql -U blueprintuser -d blueprintsdb -c "SELECT * FROM blueprints;"
+
+# Consultar puntos
+docker exec blueprints-postgres psql -U blueprintuser -d blueprintsdb -c "SELECT * FROM points;"
+
+# Contar puntos totales
+docker exec blueprints-postgres psql -U blueprintuser -d blueprintsdb -c "SELECT COUNT(*) FROM points;"
+```
+![alt text](assets/blueprints.png)
+![alt text](assets/points.png)
+![alt text](assets/count.png)
+
 
 ### 3. Buenas prácticas de API REST
 - Cambia el path base de los controladores a `/api/v1/blueprints`.  

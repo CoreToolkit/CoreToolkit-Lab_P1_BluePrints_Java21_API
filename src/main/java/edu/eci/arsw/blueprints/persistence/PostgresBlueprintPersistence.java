@@ -5,6 +5,7 @@ import edu.eci.arsw.blueprints.model.Point;
 import edu.eci.arsw.blueprints.persistence.entities.BlueprintEntity;
 import edu.eci.arsw.blueprints.persistence.entities.PointEntity;
 import edu.eci.arsw.blueprints.persistence.repository.BlueprintRepository;
+import edu.eci.arsw.blueprints.persistence.BlueprintAlreadyExistsException;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +28,7 @@ public class PostgresBlueprintPersistence implements BlueprintPersistence {
     @Transactional
     public void saveBlueprint(Blueprint bp) throws BlueprintPersistenceException {
         if (blueprintRepository.existsByAuthorAndName(bp.getAuthor(), bp.getName())) {
-            throw new BlueprintPersistenceException(
+            throw new BlueprintAlreadyExistsException(
                 "Blueprint already exists: " + bp.getAuthor() + "/" + bp.getName()
             );
         }

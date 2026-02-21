@@ -56,10 +56,16 @@ public class RestExceptionHandler {
         return error(HttpStatus.CONFLICT, ex.getMessage());
     }
 
-    @ExceptionHandler({BadRequestException.class, BlueprintPersistenceException.class, HttpMessageNotReadableException.class})
+    @ExceptionHandler({BadRequestException.class, HttpMessageNotReadableException.class})
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception ex) {
         String message = ex instanceof HttpMessageNotReadableException ? "invalid request body" : ex.getMessage();
         return error(HttpStatus.BAD_REQUEST, message);
+    }
+
+    @ExceptionHandler(BlueprintPersistenceException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePersistence(BlueprintPersistenceException ex) {
+        log.error("Persistence error", ex);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "internal server error");
     }
 
     @ExceptionHandler(Exception.class)

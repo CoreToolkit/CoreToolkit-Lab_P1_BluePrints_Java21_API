@@ -5,8 +5,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
- * Default filter: returns the blueprint unchanged.
- * This matches the baseline behavior of the reference lab before students implement custom filters.
+ * Predeterminado: devuelve el blueprint sin cambios.
+ * Esto coincide con el comportamiento base del laboratorio de referencia antes de que los estudiantes implementen filtros personalizados.
  */
 @Component
 @Profile("!redundancy & !undersampling") // only active when no custom filter profile is enabled

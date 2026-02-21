@@ -209,6 +209,9 @@ docker exec blueprints-postgres psql -U blueprintuser -d blueprintsdb -c "SELECT
   - **UndersamplingFilter**: conserva 1 de cada 2 puntos.  
 - Activa los filtros mediante perfiles de Spring (`redundancy`, `undersampling`).  
 
+### 6. Diagrama de componentes
+
+![img.png](assets/img.png)
 ---
 
 ## ✅ Entregables

@@ -1,9 +1,7 @@
--- Script de inicialización de base de datos
--- Se ejecuta SOLO la primera vez que se crea la base de datos
 
 -- Crear tabla de blueprints
 CREATE TABLE IF NOT EXISTS blueprints (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     author VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
     UNIQUE(author, name)
@@ -11,8 +9,8 @@ CREATE TABLE IF NOT EXISTS blueprints (
 
 -- Crear tabla de puntos
 CREATE TABLE IF NOT EXISTS points (
-    id SERIAL PRIMARY KEY,
-    blueprint_id INTEGER NOT NULL REFERENCES blueprints(id) ON DELETE CASCADE,
+    id BIGSERIAL PRIMARY KEY,
+    blueprint_id BIGINT NOT NULL REFERENCES blueprints(id) ON DELETE CASCADE,
     x INTEGER NOT NULL,
     y INTEGER NOT NULL,
     point_order INTEGER NOT NULL

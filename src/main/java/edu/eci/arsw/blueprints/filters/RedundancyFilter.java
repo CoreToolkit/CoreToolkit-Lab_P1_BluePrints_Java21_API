@@ -2,6 +2,7 @@ package edu.eci.arsw.blueprints.filters;
 
 import edu.eci.arsw.blueprints.model.Blueprint;
 import edu.eci.arsw.blueprints.model.Point;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -14,6 +15,7 @@ import java.util.List;
  */
 @Component
 @Profile("redundancy")
+@Primary // preferred when redundancy profile is active
 public class RedundancyFilter implements BlueprintsFilter {
     @Override
     public Blueprint apply(Blueprint bp) {

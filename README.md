@@ -12,13 +12,34 @@
 mvn clean install
 mvn spring-boot:run
 ```
-Probar con `curl`:
+Probar con `curl` (todas las respuestas usan `ApiResponse`):
 ```bash
-curl -s http://localhost:8080/blueprints | jq
-curl -s http://localhost:8080/blueprints/john | jq
-curl -s http://localhost:8080/blueprints/john/house | jq
-curl -i -X POST http://localhost:8080/blueprints -H 'Content-Type: application/json' -d '{ "author":"john","name":"kitchen","points":[{"x":1,"y":1},{"x":2,"y":2}] }'
-curl -i -X PUT  http://localhost:8080/blueprints/john/kitchen/points -H 'Content-Type: application/json' -d '{ "x":3,"y":3 }'
+# GET all (200)
+curl -s http://localhost:8080/api/v1/blueprints | jq
+
+# GET autor existente (200)
+curl -s http://localhost:8080/api/v1/blueprints/john | jq
+
+# GET autor inexistente (404)
+curl -i http://localhost:8080/api/v1/blueprints/unknown | jq
+
+# GET blueprint inexistente por autor/nombre (404)
+curl -i http://localhost:8080/api/v1/blueprints/john/unknown | jq
+
+# POST crear (201)
+curl -i -X POST http://localhost:8080/api/v1/blueprints \
+  -H 'Content-Type: application/json' \
+  -d '{ "author":"john","name":"kitchen","points":[{"x":1,"y":1},{"x":2,"y":2}] }'
+
+# POST duplicado (409)
+curl -i -X POST http://localhost:8080/api/v1/blueprints \
+  -H 'Content-Type: application/json' \
+  -d '{ "author":"john","name":"kitchen","points":[{"x":1,"y":1}]}'
+
+# PUT agregar punto (202)
+curl -i -X PUT http://localhost:8080/api/v1/blueprints/john/kitchen/points \
+  -H 'Content-Type: application/json' \
+  -d '{ "x":3,"y":3 }'
 ```
 
 > Si deseas activar filtros de puntos (reducción de redundancia, *undersampling*, etc.), implementa nuevas clases que implementen `BlueprintsFilter` y cámbialas por `IdentityFilter` con `@Primary` o usando configuración de Spring.
@@ -55,9 +76,106 @@ src/main/java/edu/eci/arsw/blueprints
 - Analiza la capa `services` (`BlueprintsServices`) y el controlador `BlueprintsAPIController`.
 
 ### 2. Migración a persistencia en PostgreSQL
-- Configura una base de datos PostgreSQL (puedes usar Docker).  
-- Implementa un nuevo repositorio `PostgresBlueprintPersistence` que reemplace la versión en memoria.  
-- Mantén el contrato de la interfaz `BlueprintPersistence`.  
+
+
+#### Archivos de Configuración
+
+**`docker-compose.yml`** - Define el servicio PostgreSQL:
+```yaml
+services:
+  postgres:
+    image: postgres:16
+    container_name: blueprints-postgres
+    environment:
+      POSTGRES_DB: blueprintsdb
+      POSTGRES_USER: blueprintuser
+      POSTGRES_PASSWORD: blueprintpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blueprintuser -d blueprintsdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
+```
+
+**`init-db.sql`** - Script de inicialización:
+- Crea tabla `blueprints` (id, author, name)
+- Crea tabla `points` (id, blueprint_id, x, y, point_order)
+- Inserta 4 blueprints de prueba con sus puntos
+- Se ejecuta **solo la primera vez.**
+
+**`application.properties`** - Configuración Spring Boot:
+```properties
+# PostgreSQL
+spring.datasource.url=jdbc:postgresql://localhost:5432/blueprintsdb
+spring.datasource.username=blueprintuser
+spring.datasource.password=blueprintpass
+
+# JPA/Hibernate
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+
+# Docker Compose automático
+spring.docker.compose.enabled=true
+spring.docker.compose.lifecycle-management=start_and_stop
+```
+
+**`pom.xml`** - Dependencias necesarias:
+```xml
+<!-- PostgreSQL Driver -->
+<dependency>
+    <groupId>org.postgresql</groupId>
+    <artifactId>postgresql</artifactId>
+</dependency>
+
+<!-- Spring Data JPA -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-jpa</artifactId>
+</dependency>
+
+<!-- Docker Compose Support -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-docker-compose</artifactId>
+    <optional>true</optional>
+</dependency>
+```
+
+#### ¿Cómo funciona?
+
+Cuando ejecutas `mvn spring-boot:run`, Spring Boot automáticamente:
+
+1. **Detecta `docker-compose.yml`** en la raíz del proyecto
+2. **Levanta PostgreSQL** con `docker compose up`
+3. **Espera a que esté listo**
+4. **Ejecuta `init-db.sql`** (solo la primera vez)
+5. **Conecta la aplicación** a la base de datos
+6. **Detiene PostgreSQL** al cerrar la aplicación
+
+#### Verificar datos en PostgreSQL
+
+```bash
+# Consultar blueprints
+docker exec blueprints-postgres psql -U blueprintuser -d blueprintsdb -c "SELECT * FROM blueprints;"
+
+# Consultar puntos
+docker exec blueprints-postgres psql -U blueprintuser -d blueprintsdb -c "SELECT * FROM points;"
+
+# Contar puntos totales
+docker exec blueprints-postgres psql -U blueprintuser -d blueprintsdb -c "SELECT COUNT(*) FROM points;"
+```
+![alt text](assets/blueprints.png)
+![alt text](assets/points.png)
+![alt text](assets/count.png)
+
 
 ### 3. Buenas prácticas de API REST
 - Cambia el path base de los controladores a `/api/v1/blueprints`.  
@@ -91,6 +209,9 @@ src/main/java/edu/eci/arsw/blueprints
   - **UndersamplingFilter**: conserva 1 de cada 2 puntos.  
 - Activa los filtros mediante perfiles de Spring (`redundancy`, `undersampling`).  
 
+### 6. Diagrama de componentes
+
+![img.png](assets/img.png)
 ---
 
 ## ✅ Entregables

@@ -1,75 +1,206 @@
 package edu.eci.arsw.blueprints.controllers;
 
+import edu.eci.arsw.blueprints.model.ApiResponse;
 import edu.eci.arsw.blueprints.model.Blueprint;
 import edu.eci.arsw.blueprints.model.Point;
 import edu.eci.arsw.blueprints.persistence.BlueprintNotFoundException;
 import edu.eci.arsw.blueprints.persistence.BlueprintPersistenceException;
 import edu.eci.arsw.blueprints.services.BlueprintsServices;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
 import java.util.Set;
 
+@Validated
 @RestController
-@RequestMapping("/blueprints")
+@RequestMapping("/api/v1/blueprints")
 public class BlueprintsAPIController {
+
+    private static final String EXAMPLE_400 = "{\"code\":400,\"message\":\"validation error\",\"data\":null}";
+    private static final String EXAMPLE_404 = "{\"code\":404,\"message\":\"blueprint not found\",\"data\":null}";
+    private static final String EXAMPLE_409 = "{\"code\":409,\"message\":\"blueprint already exists\",\"data\":null}";
+    private static final String EXAMPLE_500 = "{\"code\":500,\"message\":\"internal server error\",\"data\":null}";
 
     private final BlueprintsServices services;
 
     public BlueprintsAPIController(BlueprintsServices services) { this.services = services; }
 
-    // GET /blueprints
+    // GET /api/v1/blueprints
+    @Operation(summary = "List all blueprints")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "execute ok (ApiResponse envelope, data is a set of blueprints)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = "{\"code\":200,\"message\":\"execute ok\",\"data\":[]}"))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "validation/business error",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_400))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "blueprints not found for author (propagated service error)",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_404))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409", description = "conflict/duplicate error (unlikely for listing)",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_409))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500", description = "internal error",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_500)))
+    })
     @GetMapping
-    public ResponseEntity<Set<Blueprint>> getAll() {
-        return ResponseEntity.ok(services.getAllBlueprints());
+    public ResponseEntity<ApiResponse<Set<Blueprint>>> getAll() {
+        Set<Blueprint> data = services.getAllBlueprints();
+        return ResponseEntity.ok(new ApiResponse<>(HttpStatus.OK.value(), "execute ok", data));
     }
 
-    // GET /blueprints/{author}
+    // GET /api/v1/blueprints/{author}
+    @Operation(summary = "Get blueprints by author")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "execute ok (ApiResponse envelope, data is a set of blueprints)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = "{\"code\":200,\"message\":\"execute ok\",\"data\":[{\"author\":\"john\",\"name\":\"house\"}]}"))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "validation/business error",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_400))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "author not found",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_404))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409", description = "conflict error (propagated if present)",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_409))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500", description = "internal error",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_500)))
+    })
     @GetMapping("/{author}")
-    public ResponseEntity<?> byAuthor(@PathVariable String author) {
-        try {
-            return ResponseEntity.ok(services.getBlueprintsByAuthor(author));
-        } catch (BlueprintNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
-        }
+    public ResponseEntity<ApiResponse<Set<Blueprint>>> byAuthor(@PathVariable String author)
+            throws BlueprintNotFoundException {
+        Set<Blueprint> data = services.getBlueprintsByAuthor(author);
+        return ResponseEntity.ok(new ApiResponse<>(HttpStatus.OK.value(), "execute ok", data));
     }
 
-    // GET /blueprints/{author}/{bpname}
+    // GET /api/v1/blueprints/{author}/{bpname}
+    @Operation(summary = "Get blueprint by author and name")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "execute ok (ApiResponse envelope, data is the blueprint)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = "{\"code\":200,\"message\":\"execute ok\",\"data\":{\"author\":\"john\",\"name\":\"house\"}}"))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "validation/business error",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_400))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "blueprint not found",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_404))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409", description = "conflict error (propagated if present)",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_409))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500", description = "internal error",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_500)))
+    })
     @GetMapping("/{author}/{bpname}")
-    public ResponseEntity<?> byAuthorAndName(@PathVariable String author, @PathVariable String bpname) {
-        try {
-            return ResponseEntity.ok(services.getBlueprint(author, bpname));
-        } catch (BlueprintNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
-        }
+    public ResponseEntity<ApiResponse<Blueprint>> byAuthorAndName(@PathVariable String author, @PathVariable String bpname)
+            throws BlueprintNotFoundException {
+        Blueprint data = services.getBlueprint(author, bpname);
+        return ResponseEntity.ok(new ApiResponse<>(HttpStatus.OK.value(), "execute ok", data));
     }
 
-    // POST /blueprints
+    // POST /api/v1/blueprints
+    @Operation(summary = "Create a blueprint")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "201", description = "created (ApiResponse envelope, data is null)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = "{\"code\":201,\"message\":\"created\",\"data\":null}"))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "validation/business error",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_400))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "related blueprint not found (if parent lookup fails)",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_404))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409", description = "duplicate blueprint",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_409))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500", description = "internal error",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_500)))
+    })
     @PostMapping
-    public ResponseEntity<?> add(@Valid @RequestBody NewBlueprintRequest req) {
-        try {
-            Blueprint bp = new Blueprint(req.author(), req.name(), req.points());
-            services.addNewBlueprint(bp);
-            return ResponseEntity.status(HttpStatus.CREATED).build();
-        } catch (BlueprintPersistenceException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
-        }
+    public ResponseEntity<ApiResponse<Void>> add(@Valid @RequestBody NewBlueprintRequest req)
+            throws BlueprintPersistenceException {
+        Blueprint bp = new Blueprint(req.author(), req.name(), req.points());
+        services.addNewBlueprint(bp);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new ApiResponse<>(HttpStatus.CREATED.value(), "created", null));
     }
 
-    // PUT /blueprints/{author}/{bpname}/points
+    // PUT /api/v1/blueprints/{author}/{bpname}/points
+    @Operation(summary = "Add a point to an existing blueprint")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "202", description = "updated (ApiResponse envelope, data is null)",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = "{\"code\":202,\"message\":\"updated\",\"data\":null}"))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "invalid payload",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_400))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404", description = "blueprint not found",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_404))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409", description = "conflict error (propagated if present)",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_409))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "500", description = "internal error",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = EXAMPLE_500)))
+    })
     @PutMapping("/{author}/{bpname}/points")
-    public ResponseEntity<?> addPoint(@PathVariable String author, @PathVariable String bpname,
-                                      @RequestBody Point p) {
-        try {
-            services.addPoint(author, bpname, p.x(), p.y());
-            return ResponseEntity.status(HttpStatus.ACCEPTED).build();
-        } catch (BlueprintNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
-        }
+    public ResponseEntity<ApiResponse<Void>> addPoint(@PathVariable String author, @PathVariable String bpname,
+                                                      @RequestBody Point p)
+            throws BlueprintNotFoundException {
+        services.addPoint(author, bpname, p.x(), p.y());
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(new ApiResponse<>(HttpStatus.ACCEPTED.value(), "updated", null));
     }
 
     public record NewBlueprintRequest(
